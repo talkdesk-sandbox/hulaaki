@@ -171,12 +171,7 @@ defmodule Hulaaki.Connection do
   end
 
   defp set_active_once(socket, transport) do
-    case transport do
-      :ssl -> :ssl.setopts(socket, active: :once)
-      :gen_tcp -> :inet.setopts(socket, active: :once)
-      Hulaaki.WebSocket -> IO.puts("Maybe do something?")
-    end
-
+    transport.set_active_once(socket)
     socket
   end
 
@@ -192,11 +187,11 @@ defmodule Hulaaki.Connection do
 
     {transport, socket_opts} =
       case {websockets, ssl} do
-        {false, false} -> {:gen_tcp, tcp_opts}
-        {false, true} -> {:ssl, tcp_opts}
-        {false, ssl_opts} -> {:ssl, tcp_opts ++ ssl_opts}
-        {true, _} -> {Hulaaki.WebSocket, [secure: ssl]}
-        {websocket_opts, _} -> {Hulaaki.WebSocket, websocket_opts ++ [secure: ssl]}
+        {false, false} -> {Hulaaki.Transport.Tcp, tcp_opts}
+        {false, true} -> {Hulaaki.Transport.Ssl, tcp_opts}
+        {false, ssl_opts} -> {Hulaaki.Transport.Ssl, tcp_opts ++ ssl_opts}
+        {true, _} -> {Hulaaki.Transport.WebSocket, [secure: ssl]}
+        {websocket_opts, _} -> {Hulaaki.Transport.WebSocket, websocket_opts ++ [secure: ssl]}
       end
 
     case transport.connect(host, port, socket_opts, timeout) do
