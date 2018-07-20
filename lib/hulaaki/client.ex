@@ -73,7 +73,7 @@ defmodule Hulaaki.Client do
         port = opts |> Keyword.fetch!(:port)
         timeout = opts |> Keyword.get(:timeout, 10 * 1000)
         ssl = opts |> Keyword.get(:ssl, false)
-        websockets = opts |> Keyword.get(:websockets, false)
+        websocket = opts |> Keyword.get(:websocket, false)
 
         client_id = opts |> Keyword.fetch!(:client_id)
         username = opts |> Keyword.get(:username, "")
@@ -108,7 +108,7 @@ defmodule Hulaaki.Client do
           port: port,
           timeout: timeout,
           ssl: ssl,
-          websockets: websockets
+          websocket: websocket
         ]
 
         case state.connection |> Connection.connect(message, connect_opts) do

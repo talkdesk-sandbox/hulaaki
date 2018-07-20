@@ -26,3 +26,4 @@ services:
       MQTT_HOST: mqtt-host
       MQTT_PORT: 1883
       MQTT_TLS_PORT: 8883
+      MQTT_WEBSOCKET_PORT: 1884

@@ -7,27 +7,32 @@ defmodule Hulaaki.Transport.WebSocket do
     secure = opts |> Keyword.get(:secure, false)
     path = opts |> Keyword.get(:path, "/")
 
-    {:ok, sw} =
-      Socket.Web.connect(
-        {to_string(host), port},
-        secure: secure,
-        path: path,
-        timeout: timeout,
-        protocol: ["mqtt"]
-        #protocol: ["mqttv3.1"]
-      )
-    conn = self()
-    {:ok, pid} = start_link(%{sw: sw, conn: conn, pid: nil})
-    {:ok, %{sw: sw, pid: pid, conn: conn}}
+    with conn <- self(),
+         {:ok, ws} <-
+           Socket.Web.connect(
+             {to_string(host), port},
+             secure: secure,
+             path: path,
+             timeout: timeout,
+             protocol: ["mqtt"]
+           ),
+         socket <- %{ws: ws, conn: conn, pid: nil},
+         {:ok, pid} <- start_link(socket) do
+      Process.link(pid)
+      {:ok, %{socket | pid: pid}}
+    else
+      {:error, "connection refused"} -> {:error, :econnrefused}
+      err -> err
+    end
   end
 
-  def send(%{sw: sw} = _socket, packet) do
-    :ok = Socket.Web.send(sw, {:binary, packet})
+  def send(%{ws: ws} = _socket, packet) do
+    :ok = Socket.Web.send(ws, {:binary, packet})
   end
 
-  def close(%{sw: sw, pid: pid} = _socket) do
+  def close(%{ws: ws, pid: pid} = _socket) do
     :ok = GenServer.stop(pid, :normal)
-    Socket.Web.close(sw)
+    Socket.Web.close(ws)
   end
 
   def set_active_once(%{pid: pid} = _socket) do
@@ -47,20 +52,19 @@ defmodule Hulaaki.Transport.WebSocket do
     {:noreply, %{state | conn: conn}}
   end
 
-  def handle_cast(:receive, %{sw: sw, conn: conn} = state) do
-    case Socket.Web.recv(sw) do
+  def handle_cast(:receive, %{ws: ws, conn: conn} = state) do
+    case Socket.Web.recv(ws) do
       {:ok, {:binary, bitstring}} ->
-        Kernel.send(conn, {:tcp, state, bitstring})
+        Kernel.send(conn, {:websocket, state, bitstring})
         GenServer.cast(self(), :receive)
         {:noreply, state}
 
       {:ok, {:close, _, _}} ->
-        Kernel.send(conn, {:tcp_closed, state})
-        {:stop, :shutdown, state}
+        Kernel.send(conn, {:websocket_closed, state})
+        {:noreply, state}
 
-      other ->
-        # TODO: error handling
-        IO.inspect(other)
+      error ->
+        {:stop, error, state}
     end
   end
 end

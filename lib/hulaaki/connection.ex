@@ -103,12 +103,13 @@ defmodule Hulaaki.Connection do
         {:reply, :ok, %{state | socket: socket, transport: transport}}
 
       {:error, reason} ->
+        IO.inspect(reason)
         {:reply, {:error, reason}, state}
     end
   end
 
   @doc false
-  def handle_call({_, message}, _from, state) do
+  def handle_call({_, message} , _from, state) do
     dispatch_message(state.transport, state.socket, message)
     Kernel.send(state.client, {:sent, message})
     {:reply, :ok, state}
@@ -121,6 +122,11 @@ defmodule Hulaaki.Connection do
 
   @doc false
   def handle_info({:ssl, socket, data}, state) do
+    handle_socket_data(socket, data, state)
+  end
+
+  @doc false
+  def handle_info({:websocket, socket, data}, state) do
     handle_socket_data(socket, data, state)
   end
 
@@ -181,12 +187,12 @@ defmodule Hulaaki.Connection do
     host = if is_binary(host), do: String.to_charlist(host), else: host
     port = opts |> Keyword.fetch!(:port)
     ssl = opts |> Keyword.fetch!(:ssl)
-    websockets = opts |> Keyword.fetch!(:websockets)
+    websocket = opts |> Keyword.get(:websocket, false)
 
     tcp_opts = [:binary, {:active, :once}, {:packet, :raw}]
 
     {transport, socket_opts} =
-      case {websockets, ssl} do
+      case {websocket, ssl} do
         {false, false} -> {Hulaaki.Transport.Tcp, tcp_opts}
         {false, true} -> {Hulaaki.Transport.Ssl, tcp_opts}
         {false, ssl_opts} -> {Hulaaki.Transport.Ssl, tcp_opts ++ ssl_opts}
