@@ -103,12 +103,13 @@ defmodule Hulaaki.Connection do
         {:reply, :ok, %{state | socket: socket, transport: transport}}
 
       {:error, reason} ->
+        IO.inspect(reason)
         {:reply, {:error, reason}, state}
     end
   end
 
   @doc false
-  def handle_call({_, message}, _from, state) do
+  def handle_call({_, message} , _from, state) do
     dispatch_message(state.transport, state.socket, message)
     Kernel.send(state.client, {:sent, message})
     {:reply, :ok, state}
@@ -125,12 +126,22 @@ defmodule Hulaaki.Connection do
   end
 
   @doc false
+  def handle_info({:websocket, socket, data}, state) do
+    handle_socket_data(socket, data, state)
+  end
+
+  @doc false
   def handle_info({:tcp_closed, _socket}, state) do
     {:stop, :shutdown, state}
   end
 
   @doc false
   def handle_info({:ssl_closed, _socket}, state) do
+    {:stop, :shutdown, state}
+  end
+
+  @doc false
+  def handle_info({:websocket_closed, _socket}, state) do
     {:stop, :shutdown, state}
   end
 
@@ -166,11 +177,7 @@ defmodule Hulaaki.Connection do
   end
 
   defp set_active_once(socket, transport) do
-    case transport do
-      :ssl -> :ssl.setopts(socket, active: :once)
-      :gen_tcp -> :inet.setopts(socket, active: :once)
-    end
-
+    transport.set_active_once(socket)
     socket
   end
 
@@ -180,14 +187,17 @@ defmodule Hulaaki.Connection do
     host = if is_binary(host), do: String.to_charlist(host), else: host
     port = opts |> Keyword.fetch!(:port)
     ssl = opts |> Keyword.fetch!(:ssl)
+    websocket = opts |> Keyword.get(:websocket, false)
 
     tcp_opts = [:binary, {:active, :once}, {:packet, :raw}]
 
     {transport, socket_opts} =
-      case ssl do
-        false -> {:gen_tcp, tcp_opts}
-        true -> {:ssl, tcp_opts}
-        ssl_opts -> {:ssl, tcp_opts ++ ssl_opts}
+      case {websocket, ssl} do
+        {false, false} -> {Hulaaki.Transport.Tcp, tcp_opts}
+        {false, true} -> {Hulaaki.Transport.Ssl, tcp_opts}
+        {false, ssl_opts} -> {Hulaaki.Transport.Ssl, tcp_opts ++ ssl_opts}
+        {true, _} -> {Hulaaki.Transport.WebSocket, [secure: ssl]}
+        {websocket_opts, _} -> {Hulaaki.Transport.WebSocket, websocket_opts ++ [secure: ssl]}
       end
 
     case transport.connect(host, port, socket_opts, timeout) do
