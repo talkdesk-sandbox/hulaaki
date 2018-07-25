@@ -10,7 +10,7 @@ brokers(via the MQTT 3.1.1 protocol).
 
 A quick tour of the features implemented right now:
 - Qos 0 and Qos 1 support available. QoS 2 not supported yet.
-- SSL/TLS support available.
+- SSL/TLS and websockets support available.
 - Automatic Ping based on keep alive timeout.
 - Internal packet id generation for control packets with variable header.
 
@@ -38,7 +38,7 @@ callbacks that are intended to be overridden for required
 implementations. The callbacks are defined for each MQTT message that
 is being sent and received from the server.
 
-Here's a [list of all the override-able callbacks to](lib/hulaaki/client.ex#L292-L318)use in your projects.
+Here's a [list of all the override-able callbacks to](lib/hulaaki/client.ex#L364-L381)use in your projects.
 
 An example is present below that overrides some callbacks.
 
@@ -71,7 +71,7 @@ $ iex -S mix
 
 > {:ok, pid} = SampleClient.start_link(%{})
 
-> options = [client_id: "some-name-7490", host: "localhost", port: 8883, ssl: true]
+> options = [client_id: "some-name-7490", host: "localhost", port: 8883, transport: Hulaaki.Transport.Ssl]
 
 > SampleClient.connect(pid, options)
 
