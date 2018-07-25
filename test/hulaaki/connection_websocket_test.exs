@@ -1,4 +1,4 @@
-defmodule Hulaaki.ConnectionTCPTest do
+defmodule Hulaaki.ConnectionWebsocketTest do
   use ExUnit.Case, async: true
   alias Hulaaki.Connection
   alias Hulaaki.Message
@@ -16,9 +16,10 @@ defmodule Hulaaki.ConnectionTCPTest do
         pid,
         message,
         host: TestConfig.mqtt_host(),
-        port: TestConfig.mqtt_port(),
+        port: TestConfig.mqtt_websocket_port(),
         timeout: TestConfig.mqtt_timeout(),
-        ssl: false
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
       )
   end
 
@@ -27,7 +28,7 @@ defmodule Hulaaki.ConnectionTCPTest do
     Connection.stop(pid)
   end
 
-  test "failed tcp connection returns an error tuple", %{connection_pid: pid} do
+  test "failed websocket connection returns an error tuple", %{connection_pid: pid} do
     message = Message.connect(TestHelper.random_name(), "", "", "", "", 0, 0, 0, 100)
 
     reply =
@@ -36,8 +37,9 @@ defmodule Hulaaki.ConnectionTCPTest do
         message,
         host: TestConfig.mqtt_host(),
         port: 7878,
-        timeout: TestConfig.mqtt_timeout(),
-        ssl: false
+        timeout: 500,
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
       )
 
     assert {:error, :econnrefused} == reply

@@ -1,4 +1,4 @@
-defmodule Hulaaki.ClientTCPTest do
+defmodule Hulaaki.ClientWebsocketTest do
   use ExUnit.Case, async: true
   alias Hulaaki.Message
 
@@ -115,8 +115,10 @@ defmodule Hulaaki.ClientTCPTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_port(),
-      timeout: TestConfig.mqtt_timeout()
+      port: TestConfig.mqtt_websocket_port(),
+      timeout: TestConfig.mqtt_timeout(),
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     :ok = SampleClient.connect(pid, options)
@@ -132,7 +134,9 @@ defmodule Hulaaki.ClientTCPTest do
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
       port: 7878,
-      timeout: TestConfig.mqtt_timeout()
+      timeout: 200,
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     reply = SampleClient.connect(pid, options)
@@ -289,9 +293,11 @@ defmodule Hulaaki.ClientTCPTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_port(),
+      port: TestConfig.mqtt_websocket_port(),
       keep_alive: 2,
-      timeout: TestConfig.mqtt_timeout()
+      timeout: TestConfig.mqtt_timeout(),
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     SampleClient.connect(pid, options)
@@ -308,9 +314,11 @@ defmodule Hulaaki.ClientTCPTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_port(),
+      port: TestConfig.mqtt_websocket_port(),
       keep_alive: 2,
-      timeout: TestConfig.mqtt_timeout()
+      timeout: TestConfig.mqtt_timeout(),
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     HackPingResponseClient.connect(pid, options)
@@ -326,8 +334,10 @@ defmodule Hulaaki.ClientTCPTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_port(),
-      timeout: TestConfig.mqtt_timeout()
+      port: TestConfig.mqtt_websocket_port(),
+      timeout: TestConfig.mqtt_timeout(),
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     PacketIdInspectClient.connect(pid, options)
@@ -369,7 +379,9 @@ defmodule Hulaaki.ClientTCPTest do
       options = [
         client_id: TestHelper.random_name(),
         host: TestConfig.mqtt_host(),
-        port: TestConfig.mqtt_port()
+        port: TestConfig.mqtt_websocket_port(),
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
       ]
 
       SampleClient.connect(pid2, options)
@@ -398,7 +410,9 @@ defmodule Hulaaki.ClientTCPTest do
       options = [
         client_id: TestHelper.random_name(),
         host: TestConfig.mqtt_host(),
-        port: TestConfig.mqtt_port()
+        port: TestConfig.mqtt_websocket_port(),
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
       ]
 
       SampleClient.connect(pid2, options)
@@ -427,7 +441,9 @@ defmodule Hulaaki.ClientTCPTest do
       options = [
         client_id: TestHelper.random_name(),
         host: TestConfig.mqtt_host(),
-        port: TestConfig.mqtt_port()
+        port: TestConfig.mqtt_websocket_port(),
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
       ]
 
       SampleClient.connect(pid2, options)
