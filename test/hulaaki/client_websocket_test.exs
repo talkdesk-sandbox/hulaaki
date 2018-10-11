@@ -1,4 +1,4 @@
-defmodule Hulaaki.ClientSSLTest do
+defmodule Hulaaki.ClientWebsocketTest do
   use ExUnit.Case, async: true
   alias Hulaaki.Message
 
@@ -115,9 +115,10 @@ defmodule Hulaaki.ClientSSLTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_tls_port(),
+      port: TestConfig.mqtt_websocket_port(),
       timeout: TestConfig.mqtt_timeout(),
-      ssl: TestConfig.ssl_options()
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     :ok = SampleClient.connect(pid, options)
@@ -133,8 +134,9 @@ defmodule Hulaaki.ClientSSLTest do
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
       port: 7878,
-      timeout: TestConfig.mqtt_timeout(),
-      ssl: TestConfig.ssl_options()
+      timeout: 200,
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     reply = SampleClient.connect(pid, options)
@@ -291,10 +293,11 @@ defmodule Hulaaki.ClientSSLTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_tls_port(),
+      port: TestConfig.mqtt_websocket_port(),
       keep_alive: 2,
       timeout: TestConfig.mqtt_timeout(),
-      ssl: TestConfig.ssl_options()
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     SampleClient.connect(pid, options)
@@ -311,10 +314,11 @@ defmodule Hulaaki.ClientSSLTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_tls_port(),
+      port: TestConfig.mqtt_websocket_port(),
       keep_alive: 2,
       timeout: TestConfig.mqtt_timeout(),
-      ssl: TestConfig.ssl_options()
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     HackPingResponseClient.connect(pid, options)
@@ -330,9 +334,10 @@ defmodule Hulaaki.ClientSSLTest do
     options = [
       client_id: TestHelper.random_name(),
       host: TestConfig.mqtt_host(),
-      port: TestConfig.mqtt_tls_port(),
+      port: TestConfig.mqtt_websocket_port(),
       timeout: TestConfig.mqtt_timeout(),
-      ssl: TestConfig.ssl_options()
+      transport: Hulaaki.Transport.WebSocket,
+      transport_opts: []
     ]
 
     PacketIdInspectClient.connect(pid, options)
@@ -374,9 +379,9 @@ defmodule Hulaaki.ClientSSLTest do
       options = [
         client_id: TestHelper.random_name(),
         host: TestConfig.mqtt_host(),
-        port: TestConfig.mqtt_tls_port(),
-        timeout: TestConfig.mqtt_timeout(),
-        ssl: TestConfig.ssl_options()
+        port: TestConfig.mqtt_websocket_port(),
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
       ]
 
       SampleClient.connect(pid2, options)
@@ -405,9 +410,9 @@ defmodule Hulaaki.ClientSSLTest do
       options = [
         client_id: TestHelper.random_name(),
         host: TestConfig.mqtt_host(),
-        port: TestConfig.mqtt_tls_port(),
-        timeout: TestConfig.mqtt_timeout(),
-        ssl: TestConfig.ssl_options()
+        port: TestConfig.mqtt_websocket_port(),
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
       ]
 
       SampleClient.connect(pid2, options)
@@ -419,6 +424,44 @@ defmodule Hulaaki.ClientSSLTest do
     end)
 
     assert_receive {:subscribed_publish_ack, %Message.PubAck{}}
+
+    post_disconnect(pid)
+  end
+
+  test "when qos 2, subscribed_publish and subscribed_publish_ack aren't called back, essential a :noop",
+       %{client_pid: pid} do
+    pre_connect(pid)
+
+    options = [topics: ["qos-1-topic", "qos-2-topic"], qoses: [1, 2]]
+    SampleClient.subscribe(pid, options)
+
+    spawn(fn ->
+      {:ok, pid2} = SampleClient.start_link(%{parent: self()})
+
+      options = [
+        client_id: TestHelper.random_name(),
+        host: TestConfig.mqtt_host(),
+        port: TestConfig.mqtt_websocket_port(),
+        transport: Hulaaki.Transport.WebSocket,
+        transport_opts: []
+      ]
+
+      SampleClient.connect(pid2, options)
+
+      options_qos_1 = [topic: "qos-1-topic", message: "qos 1 here", dup: 0, qos: 1, retain: 0]
+      SampleClient.publish(pid2, options_qos_1)
+
+      options_qos_2 = [topic: "qos-2-topic", message: "qos 2 here", dup: 0, qos: 2, retain: 0]
+      SampleClient.publish(pid2, options_qos_2)
+
+      post_disconnect(pid2)
+    end)
+
+    assert_receive {:subscribed_publish, %Message.Publish{id: 1, message: "qos 1 here"}}
+    assert_receive {:subscribed_publish_ack, %Message.PubAck{id: 1}}
+
+    refute_receive {:subscribed_publish, %Message.Publish{message: "qos 2 here"}}
+    refute_receive {:subscribed_publish_ack, %Message.PubAck{id: 2}}
 
     post_disconnect(pid)
   end

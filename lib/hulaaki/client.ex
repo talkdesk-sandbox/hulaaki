@@ -5,7 +5,7 @@ defmodule Hulaaki.Client do
   """
   defmacro __using__(_) do
     quote location: :keep do
-      use GenServer
+      use GenServer, restart: :transient
       alias Hulaaki.Connection
       alias Hulaaki.Message
 
@@ -18,8 +18,7 @@ defmodule Hulaaki.Client do
       end
 
       def connect(pid, opts) do
-        {:ok, conn_pid} = Connection.start_link(pid)
-        GenServer.call(pid, {:connect, opts, conn_pid})
+        GenServer.call(pid, {:connect, opts})
       end
 
       def publish(pid, opts) do
@@ -52,15 +51,19 @@ defmodule Hulaaki.Client do
           |> Map.put(:keep_alive_timer_ref, nil)
           |> Map.put(:ping_response_timeout_interval, nil)
           |> Map.put(:ping_response_timer_ref, nil)
+          |> Map.put(:connection, nil)
 
         {:ok, state}
       end
 
       def handle_call(:stop, _from, state) do
-        conn_pid = state.connection
+        case state.connection do
+          nil ->
+            nil
 
-        if conn_pid && Process.alive?(conn_pid) do
-          Connection.stop(conn_pid)
+          conn_pid ->
+            Connection.stop(conn_pid)
+            Supervisor.delete_child(Connection.Supervisor, state.client_id)
         end
 
         {:stop, :normal, :ok, state}
@@ -68,11 +71,13 @@ defmodule Hulaaki.Client do
 
       # collection options for host port ?
 
-      def handle_call({:connect, opts, conn_pid}, _from, state) do
+      def handle_call({:connect, opts}, _from, state) do
         host = opts |> Keyword.fetch!(:host)
         port = opts |> Keyword.fetch!(:port)
         timeout = opts |> Keyword.get(:timeout, 10 * 1000)
         ssl = opts |> Keyword.get(:ssl, false)
+        transport = opts |> Keyword.get(:transport)
+        transport_opts = opts |> Keyword.get(:transport_opts)
 
         client_id = opts |> Keyword.fetch!(:client_id)
         username = opts |> Keyword.get(:username, "")
@@ -100,9 +105,20 @@ defmodule Hulaaki.Client do
             keep_alive
           )
 
-        state = Map.merge(%{connection: conn_pid}, state)
+        {:ok, conn_pid} = start_connection(client_id)
 
-        connect_opts = [host: host, port: port, timeout: timeout, ssl: ssl]
+        conn_ref = Process.monitor(conn_pid)
+
+        state = Map.merge(state, %{connection: conn_pid, client_id: client_id})
+
+        connect_opts = [
+          host: host,
+          port: port,
+          timeout: timeout,
+          ssl: ssl,
+          transport: transport,
+          transport_opts: transport_opts
+        ]
 
         case state.connection |> Connection.connect(message, connect_opts) do
           :ok ->
@@ -114,8 +130,14 @@ defmodule Hulaaki.Client do
              }}
 
           {:error, reason} ->
+            Process.demonitor(conn_ref)
+            stop_connection(conn_pid, client_id)
             {:reply, {:error, reason}, state}
         end
+      end
+
+      def handle_call(_, _from, %{connection: nil} = state) do
+        {:reply, {:error, :not_connected}, state}
       end
 
       def handle_call({:publish, opts}, _from, state) do
@@ -273,7 +295,7 @@ defmodule Hulaaki.Client do
       end
 
       def handle_info({:sent, %Message.Disconnect{} = message}, state) do
-        state = reset_keep_alive_timer(state)
+        state = cancel_keep_alive_timer(state)
         on_disconnect(message: message, state: state)
         {:noreply, state}
       end
@@ -285,6 +307,22 @@ defmodule Hulaaki.Client do
 
       def handle_info({:ping_response_timeout}, state) do
         on_ping_response_timeout(message: nil, state: state)
+        {:noreply, state}
+      end
+
+      def handle_info({:connection_down, reason}, state) do
+        state = cancel_keep_alive_timer(state)
+        on_connection_down(reason: reason, state: state)
+        {:noreply, state}
+      end
+
+      def handle_info(
+            {:DOWN, _, :process, conn_pid, reason},
+            %{connection: conn_pid, client_id: client_id} = state
+          ) do
+        state = cancel_keep_alive_timer(state)
+        Supervisor.delete_child(Connection.Supervisor, client_id)
+        on_connection_down(reason: reason, state: state)
         {:noreply, state}
       end
 
@@ -314,6 +352,11 @@ defmodule Hulaaki.Client do
         %{state | ping_response_timer_ref: ping_response_timer_ref}
       end
 
+      defp cancel_keep_alive_timer(%{keep_alive_timer_ref: keep_alive_timer_ref} = state) do
+        if keep_alive_timer_ref, do: Process.cancel_timer(keep_alive_timer_ref)
+        %{state | keep_alive_timer_ref: nil}
+      end
+
       defp cancel_ping_response_timer(%{ping_response_timer_ref: ping_response_timer_ref} = state) do
         if ping_response_timer_ref, do: Process.cancel_timer(ping_response_timer_ref)
         %{state | ping_response_timer_ref: nil}
@@ -325,6 +368,24 @@ defmodule Hulaaki.Client do
 
       defp update_packet_id(%{packet_id: packet_id} = state) do
         %{state | packet_id: packet_id + 1}
+      end
+
+      defp start_connection(client_id) do
+        child_spec = %{
+          id: client_id,
+          start: {Connection, :start_link, [self()]},
+          restart: :transient
+        }
+
+        case Supervisor.start_child(Connection.Supervisor, child_spec) do
+          {:ok, pid} -> {:ok, pid}
+          {:error, {:already_started, pid}} -> {:ok, pid}
+        end
+      end
+
+      defp stop_connection(conn_pid, client_id) do
+        Connection.stop(conn_pid)
+        Supervisor.delete_child(Connection.Supervisor, client_id)
       end
 
       ## Overrideable callbacks
@@ -346,6 +407,7 @@ defmodule Hulaaki.Client do
       def on_ping_response(message: message, state: state), do: true
       def on_ping_response_timeout(message: message, state: state), do: true
       def on_disconnect(message: message, state: state), do: true
+      def on_connection_down(reason: reason, state: state), do: true
 
       defoverridable on_connect: 1,
                      on_connect_ack: 1,
@@ -363,7 +425,8 @@ defmodule Hulaaki.Client do
                      on_ping: 1,
                      on_ping_response: 1,
                      on_ping_response_timeout: 1,
-                     on_disconnect: 1
+                     on_disconnect: 1,
+                     on_connection_down: 1
     end
   end
 end

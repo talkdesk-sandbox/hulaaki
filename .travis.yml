@@ -8,13 +8,26 @@ matrix:
       elixir: 1.5.3
     - otp_release: 20.2
       elixir: 1.6.0
+    - otp_release: 21.0
+      elixir: 1.7
 before_install:
   - sudo apt-get update -qq
-  - sudo apt-get -y install libc-ares-dev libssl-dev uuid-dev
-  - wget http://mosquitto.org/files/source/mosquitto-1.4.tar.gz
+  - sudo apt-get -y install libc-ares-dev libssl-dev uuid-dev cmake
+  - wget https://github.com/warmcat/libwebsockets/archive/v3.0.0.tar.gz -O libwebsockets-3.0.0.tar.gz
+  - wget http://mirror.switch.ch/eclipse/mosquitto/source/mosquitto-1.4.12.tar.gz
 install:
-  - tar xvzf mosquitto-1.4.tar.gz
-  - cd mosquitto-1.4
+  - tar xvzf libwebsockets-3.0.0.tar.gz
+  - cd libwebsockets-3.0.0
+  - mkdir build
+  - cd build
+  - cmake .. -DOPENSSL_ROOT_DIR=/usr/bin/openssl
+  - make
+  - sudo make install
+  - sudo ldconfig
+  - cd ../..
+  - tar xvzf mosquitto-1.4.12.tar.gz
+  - cd mosquitto-1.4.12
+  - sed -i "s/WITH_WEBSOCKETS:=.*/WITH_WEBSOCKETS:=yes/" config.mk
   - make
   - sudo make install
   - cd ..

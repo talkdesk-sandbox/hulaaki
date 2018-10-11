@@ -8,7 +8,7 @@ defmodule Hulaaki.Mixfile do
       app: :hulaaki,
       version: @version,
       name: "Hulaaki",
-      elixir: "~> 1.3",
+      elixir: "~> 1.4",
       source_url: "https://github.com/suvash/hulaaki",
       homepage_url: "https://github.com/suvash/hulaaki",
       deps: deps(),
@@ -20,7 +20,7 @@ defmodule Hulaaki.Mixfile do
   end
 
   def application do
-    [applications: [:logger]]
+    [applications: [], mod: {Hulaaki.Application, []}]
   end
 
   defp deps do
@@ -28,7 +28,8 @@ defmodule Hulaaki.Mixfile do
       {:inch_ex, "~> 0.5", only: :docs},
       {:earmark, "~> 1.2", only: [:dev, :docs]},
       {:ex_doc, "~> 0.18", only: [:dev, :docs]},
-      {:excoveralls, "~> 0.8", only: [:dev, :test]}
+      {:excoveralls, "~> 0.8", only: [:dev, :test]},
+      {:socket, "~> 0.3"}
     ]
   end
 
